@@ -298,7 +298,8 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       node.classList = 'rounded border text-smaller padding-small margin-top-small relative o-tooltip';
       node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p><p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.cqlFilter}</p>${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
 
-      if (!viewer.getLayer(filter.layerName).get('visible')) {
+      const layer = viewer.getLayer(filter.layerName);
+      if (!layer || !layer.get('visible')) {
         node.querySelector('.edit-filter').classList.add('disabled');
         node.querySelector('.display-filter').classList.remove('o-hidden');
       } else {
@@ -1130,9 +1131,13 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         addListenerToLayers();
       });
 
-      viewer.getMap().getLayers().on('remove', async () => {
+      viewer.getMap().getLayers().on('remove', async (event) => {
         await handleLayerChanges();
         addListenerToLayers();
+        const layer = event.element;
+        if (!layer) return;
+        removeFromJson(layer.get('name'));
+        setNumberOfLayersWithFilter();
       });
 
       if (actLikeRadioButton) {
