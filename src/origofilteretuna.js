@@ -193,25 +193,51 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     return response;
   }
 
+  async function getFeatureProps(layer) {
+    try {
+      const sourceUrl = getSourceUrl(layer);
+      const url = [
+        `${sourceUrl}`,
+        'wfs?version=1.3.0&request=describeFeatureType&outputFormat=application/json&service=WFS',
+        `&typeName=${layer.get('name')}`
+      ].join('');
+
+      const res = await fetch(url);
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function getProperties(layer) {
+    let ftlProps = [];
     if (ftlMapper) {
       const mappedContent = await ftlMapper.getFtlMap(layer);
       if (mappedContent && mappedContent.length > 0) {
-        return mappedContent;
+        ftlProps = mappedContent;
       }
     }
 
-    const sourceUrl = getSourceUrl(layer);
-    const url = [
-      `${sourceUrl}`,
-      'wfs?version=1.3.0&request=describeFeatureType&outputFormat=application/json&service=WFS',
-      `&typeName=${layer.get('name')}`
-    ].join('');
+    const response = await getFeatureProps(layer);
+    if (!response) return ftlProps;
 
-    const response = await fetch(url)
-      .then(res => res.json());
-
-    return response.featureTypes[0].properties.filter(prop => !excludedAttributes.includes(prop.name));
+    const featureProps = response.featureTypes[0].properties.filter(prop => !excludedAttributes.includes(prop.name));
+    const newProps = [];
+    featureProps.forEach((prop) => {
+      const obj = prop;
+      if (ftlProps.length > 0) {
+        const matchingProp = ftlProps.find(f => f.name === obj.name);
+        if (matchingProp) {
+          obj.ftlValue = matchingProp.ftlValue;
+          ftlProps = ftlProps.filter(f => f.name !== matchingProp.name);
+        }
+      }
+      newProps.push(obj);
+    });
+    if (ftlProps.length > 0) {
+      newProps.push(...ftlProps);
+    }
+    return newProps.filter(n => n.name !== 'searchfield' && n.name !== 'sokid' && n.name !== 'geom');
   }
 
   async function addAttributeRow(attribute, operator, value, firstRow) {
@@ -496,35 +522,41 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   async function selectListnener(evt) {
-    if (evt.target.value !== '') {
-      selectedLayer = viewer.getLayer(evt.target.value);
-      properties = await getProperties(selectedLayer);
-
-      initAttributesWithProperties();
-      removeAttributeRows();
-
-      const currentFilter = getCqlFilterFromLayer(selectedLayer);
-      document.getElementById(cqlStringTextarea.getId()).value = currentFilter;
-
-      if (currentFilter !== '') {
-        setAttributeRowsToFilter(currentFilter);
-      } else {
-        document.getElementById(logicSelect.getId()).selectedIndex = 0;
-        const firstAttributeRow = document.getElementsByClassName('attributeRow')[0];
-        firstAttributeRow.querySelector('input').value = '';
-        firstAttributeRow.querySelector(`#${operatorSelect.getId()}`).value = operators[0];
-      }
-
-      if (attributesWithSpecialChars) {
-        document.getElementById(attributeWarningDiv.getId()).classList.remove('o-hidden');
-      } else {
-        document.getElementById(attributeWarningDiv.getId()).classList.add('o-hidden');
-      }
-
-      document.getElementById(filterContentDiv.getId()).classList.remove('o-hidden');
-    } else {
+    if (evt.target.value === '') {
       document.getElementById(filterContentDiv.getId()).classList.add('o-hidden');
+      return;
     }
+
+    selectedLayer = viewer.getLayer(evt.target.value);
+    properties = await getProperties(selectedLayer);
+
+    if (properties.length <= 0) {
+      document.getElementById(filterContentDiv.getId()).classList.add('o-hidden');
+      return;
+    }
+
+    initAttributesWithProperties();
+    removeAttributeRows();
+
+    const currentFilter = getCqlFilterFromLayer(selectedLayer);
+    document.getElementById(cqlStringTextarea.getId()).value = currentFilter;
+
+    if (currentFilter !== '') {
+      setAttributeRowsToFilter(currentFilter);
+    } else {
+      document.getElementById(logicSelect.getId()).selectedIndex = 0;
+      const firstAttributeRow = document.getElementsByClassName('attributeRow')[0];
+      firstAttributeRow.querySelector('input').value = '';
+      firstAttributeRow.querySelector(`#${operatorSelect.getId()}`).value = operators[0];
+    }
+
+    if (attributesWithSpecialChars) {
+      document.getElementById(attributeWarningDiv.getId()).classList.remove('o-hidden');
+    } else {
+      document.getElementById(attributeWarningDiv.getId()).classList.add('o-hidden');
+    }
+
+    document.getElementById(filterContentDiv.getId()).classList.remove('o-hidden');
   }
 
   function renderLayerSelect() {
