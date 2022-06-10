@@ -39,8 +39,26 @@ export default function FtlMapper(options = {}) {
     const headerInfo = doc.querySelector('.featureInfoHeader');
     if (headerInfo) {
       const headerValue = headerInfo.querySelector('.headerText').innerHTML.split('.')[1];
-      attributes.push({ ftlValue: 'Namn', name: headerValue });
+      attributes.push({ ftlValue: `Rubrik (${headerValue})`, name: headerValue });
+
+      const headerLink = headerInfo.querySelector('.headerLink');
+      if (headerLink) {
+        const linkValue = headerLink.href.split('.')[1];
+        attributes.push({ ftlValue: `Länk (${linkValue})`, name: linkValue });
+      }
     }
+
+    const description = doc.querySelector('.featureInfoDescription');
+    if (description) {
+      const descriptionValue = description.querySelector('.descriptionText').innerHTML.split('.')[1];
+      attributes.push({ ftlValue: 'Beskrivning', name: descriptionValue });
+    }
+
+    const attributeLinks = Array.from(doc.querySelectorAll('.attributeLink'));
+    attributeLinks.forEach((attributeLink) => {
+      const linkValue = attributeLink.href.split('.')[1];
+      attributes.push({ ftlValue: `Länk (${linkValue})`, name: linkValue });
+    });
 
     const featureInfo = Array.from(doc.querySelectorAll('.featureInfoAttributeValue'));
     featureInfo.forEach((row) => {
