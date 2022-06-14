@@ -54,6 +54,16 @@ export default function FtlMapper(options = {}) {
       attributes.push({ ftlValue: 'Beskrivning', name: descriptionValue });
     }
 
+    const imageLinks = Array.from(doc.querySelectorAll('.featureInfoImage img'));
+    imageLinks.forEach((imageLink) => {
+      const linkSplit = imageLink.src.split('.');
+      if (linkSplit.length > 0) {
+        const linkValue = linkSplit[1];
+        if (attributes.some(a => a.ftlValue === `Bild-URL (${linkValue})`)) return;
+        attributes.push({ ftlValue: `Bild-URL (${linkValue})`, name: linkValue });
+      }
+    });
+
     const attributeLinks = Array.from(doc.querySelectorAll('.attributeLink'));
     attributeLinks.forEach((attributeLink) => {
       const linkValue = attributeLink.href.split('.')[1];
