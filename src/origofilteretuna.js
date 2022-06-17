@@ -221,7 +221,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     const response = await getFeatureProps(layer);
     if (!response) return ftlProps;
 
-    const featureProps = response.featureTypes[0].properties.filter(prop => !excludedAttributes.includes(prop.name));
+    const featureProps = response.featureTypes[0].properties;
     const newProps = [];
     featureProps.forEach((prop) => {
       const obj = prop;
@@ -237,7 +237,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     if (ftlProps.length > 0) {
       newProps.push(...ftlProps);
     }
-    return newProps.filter(n => n.name !== 'searchfield' && n.name !== 'sokid' && n.name !== 'geom');
+    return newProps.filter(prop => !excludedAttributes.includes(prop.name));
   }
 
   async function addAttributeRow(attribute, operator, value, firstRow) {
@@ -521,7 +521,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     });
   }
 
-  async function selectListnener(evt) {
+  async function selectListener(evt) {
     if (evt.target.value === '') {
       document.getElementById(filterContentDiv.getId()).classList.add('o-hidden');
       return;
@@ -585,7 +585,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     addOperators();
     selectedLayer = viewer.getLayer(select.value);
     if (!addedListener) {
-      select.addEventListener('change', async evt => selectListnener(evt));
+      select.addEventListener('change', async evt => selectListener(evt));
       addedListener = true;
     }
   }

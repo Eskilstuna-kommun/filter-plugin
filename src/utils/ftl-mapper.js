@@ -42,8 +42,9 @@ export default function FtlMapper(options = {}) {
       attributes.push({ ftlValue: `Rubrik (${headerValue})`, name: headerValue });
 
       const headerLink = headerInfo.querySelector('.headerLink');
-      if (headerLink) {
-        const linkValue = headerLink.href.split('.')[1];
+      if (headerLink && headerLink.href.includes('feature.')) {
+        const linkSplit = headerLink.href.split('feature.')[1];
+        const linkValue = linkSplit.split('.')[0];
         attributes.push({ ftlValue: `Länk (${linkValue})`, name: linkValue });
       }
     }
@@ -56,17 +57,18 @@ export default function FtlMapper(options = {}) {
 
     const imageLinks = Array.from(doc.querySelectorAll('.featureInfoImage img'));
     imageLinks.forEach((imageLink) => {
-      const linkSplit = imageLink.src.split('.');
-      if (linkSplit.length > 0) {
-        const linkValue = linkSplit[1];
-        if (attributes.some(a => a.ftlValue === `Bild-URL (${linkValue})`)) return;
-        attributes.push({ ftlValue: `Bild-URL (${linkValue})`, name: linkValue });
-      }
+      if (!imageLink.src.includes('feature.')) return;
+      const linkSplit = imageLink.src.split('feature.')[1];
+      const linkValue = linkSplit.split('.')[0];
+      if (attributes.some(a => a.ftlValue === `Bild-URL (${linkValue})`)) return;
+      attributes.push({ ftlValue: `Bild-URL (${linkValue})`, name: linkValue });
     });
 
     const attributeLinks = Array.from(doc.querySelectorAll('.attributeLink'));
     attributeLinks.forEach((attributeLink) => {
-      const linkValue = attributeLink.href.split('.')[1];
+      if (!attributeLink.href.includes('feature.')) return;
+      const linkSplit = attributeLink.href.split('feature.')[1];
+      const linkValue = linkSplit.split('.')[0];
       attributes.push({ ftlValue: `Länk (${linkValue})`, name: linkValue });
     });
 
