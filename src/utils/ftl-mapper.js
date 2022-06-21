@@ -90,11 +90,14 @@ export default function FtlMapper(options = {}) {
 
   return Origo.ui.Component({
     async getFtlMap(layer) {
-      const workspace = layer.get('sourceName')
-        .replaceAll(geoserverUrl, '')
-        .replaceAll('/wms', '')
-        .replaceAll('/wfs', '')
-        .replaceAll('/', '');
+      let workspace = layer.get('sourceName');
+      if (workspace.includes('/')) {
+        workspace = workspace
+          .split('/wms').shift()
+          .split('/wfs').shift()
+          .split('/')
+          .pop();
+      }
       const workspaceResult = await getWorkspaceDatastore(workspace, layer.get('name'));
       if (!workspaceResult) return null;
       const contentFtl = await getTemplate(workspaceResult.layer.resource.href);
