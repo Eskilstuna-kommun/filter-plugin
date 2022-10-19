@@ -124,15 +124,19 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     return viewer.getLayers().filter(layer => getCqlFilterFromLayer(layer) !== '').length;
   }
 
-  function setNumberOfLayersWithFilter() {
-    const numberOfFilters = getNumberOfLayersWithFilter();
-    document.getElementById(statusNumbers.getId()).innerHTML = numberOfFilters;
-    document.getElementById('myFilterCount').innerHTML = numberOfFilters;
-
-    if (numberOfFilters > 0) {
-      document.getElementById(statusIcon.getId()).classList.remove('o-hidden');
-    } else {
+  function setNumberOfLayersWithFilter(isEmbedded) {
+    if (isEmbedded) {
       document.getElementById(statusIcon.getId()).classList.add('o-hidden');
+    } else {
+      const numberOfFilters = getNumberOfLayersWithFilter();
+      document.getElementById(statusNumbers.getId()).innerHTML = numberOfFilters;
+      document.getElementById('myFilterCount').innerHTML = numberOfFilters;
+
+      if (numberOfFilters > 0) {
+        document.getElementById(statusIcon.getId()).classList.remove('o-hidden');
+      } else {
+        document.getElementById(statusIcon.getId()).classList.add('o-hidden');
+      }
     }
   }
 
@@ -377,13 +381,13 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       if (layer.get('type') === 'WMS') {
         layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
         addFilterTagAndBackground(filter.layerName);
-        setNumberOfLayersWithFilter();
+        setNumberOfLayersWithFilter(viewer.getEmbedded());
       } else if (layer.get('type') === 'WFS') {
         layer.getSource().once('change', () => {
           if (layer.getSource().getState() === 'ready') {
             setWfsFeaturesOnLayer(layer, filter.cqlFilter);
             addFilterTagAndBackground(filter.layerName);
-            setNumberOfLayersWithFilter();
+            setNumberOfLayersWithFilter(viewer.getEmbedded());
           }
         });
       }
@@ -1150,6 +1154,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
 
       this.addComponents([filterButton]);
       this.render();
+      if (viewer.getEmbedded()) {
+        document.getElementsByClassName('o-filteretuna')[0].classList.add('hidden');
+      }
 
       if (geoserverUrl) {
         ftlMapper = FtlMapper({ geoserverUrl });
