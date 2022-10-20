@@ -10,6 +10,7 @@ För filtrering på WFS från Geoserver krävs att lagret eller dess source har 
 ```
 
 **Parametrar:**
+- hideButtonWhenEmbedded: Huruvida filterknappen (och antal-aktiva-filter-indikatorn) inte ska visas i en inbäddad karta. Påverkar inte funktionaliteten om den inbäddade kartan använder en mapState som innehåller filter. Default är falsk. **Valfri**
 - excludedAttributes: Egenskaper/attribut som inte ska listas i gränssnittet. **Valfri**.
 - excludedLayers: Lager som inte ska listas i gränssnittet. Baseras på lagrets namn. **Valfri**.
 - optionBackgroundColor: Bakgrundsfärg på filterade lager i lagerlistan. **Valfri**.
@@ -46,6 +47,7 @@ SVG för ic_filter_24px
     var origo = Origo('index.json');
     origo.on('load', function (viewer) {
       var origofilteretuna = Origofilteretuna({
+        hideButtonWhenEmbedded: true,
         excludedAttributes: ['geom', 'sokid'],
         excludedLayers: ['sokvyx_djupdata_djuppunkter_vy'],
         optionBackgroundColor: '#e1f2fe',
