@@ -65,6 +65,8 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   const dom = Origo.ui.dom;
   const layerTypes = ['WMS', 'WFS'];
   const operators = [' = ', ' <> ', ' < ', ' > ', ' <= ', ' >= ', ' like ', ' between '];
+
+  const hideButtonWhenEmbedded = 'hideButtonWhenEmbedded' in options ? options.hideButtonWhenEmbedded : false;
   const excludedAttributes = Object.prototype.hasOwnProperty.call(options, 'excludedAttributes') ? options.excludedAttributes : [];
   const excludedLayers = Object.prototype.hasOwnProperty.call(options, 'excludedLayers') ? options.excludedLayers : [];
   const optionBackgroundColor = Object.prototype.hasOwnProperty.call(options, 'optionBackgroundColor') ? options.optionBackgroundColor : '#e1f2fe';
@@ -125,7 +127,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function setNumberOfLayersWithFilter(isEmbedded) {
-    if (isEmbedded) {
+    if (isEmbedded && (hideButtonWhenEmbedded === true)) {
       document.getElementById(statusIcon.getId()).classList.add('o-hidden');
     } else {
       const numberOfFilters = getNumberOfLayersWithFilter();
@@ -1154,7 +1156,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
 
       this.addComponents([filterButton]);
       this.render();
-      if (viewer.getEmbedded()) {
+      if (viewer.getEmbedded() && (hideButtonWhenEmbedded === true)) {
         document.getElementsByClassName('o-filteretuna')[0].classList.add('hidden');
       }
 
