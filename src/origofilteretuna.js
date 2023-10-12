@@ -189,7 +189,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     const url = [
       `${sourceUrl}`,
       'wfs?service=WFS&version=1.1.0&request=GetFeature&outputFormat=application/json',
-      `&typeName=${layer.get('name')}`,
+      `&typeName=${layer.get('name').split('__')[0]}`,
       `${filter ? `&CQL_FILTER=${filterArr.join(' ')}` : ''}`
     ].join('');
 
@@ -205,7 +205,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       const url = [
         `${sourceUrl}`,
         'wfs?version=1.3.0&request=describeFeatureType&outputFormat=application/json&service=WFS',
-        `&typeName=${layer.get('name')}`
+        `&typeName=${layer.get('name').split('__')[0]}`
       ].join('');
 
       const res = await fetch(url);
@@ -432,7 +432,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     }
 
     if (selectedLayer.get('type') === 'WMS') {
-      selectedLayer.getSource().updateParams({ layers: selectedLayer.get('name'), CQL_FILTER: filterString });
+      selectedLayer.getSource().updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: filterString });
     } else if (selectedLayer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(selectedLayer, filterString);
     }
@@ -454,7 +454,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     document.getElementById(cqlStringTextarea.getId()).value = '';
 
     if (layer.get('type') === 'WMS') {
-      layer.getSource().updateParams({ layers: layer.get('name'), CQL_FILTER: undefined });
+      layer.getSource().updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
     } else if (layer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(layer);
     }
@@ -473,7 +473,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     document.getElementById(cqlStringTextarea.getId()).value = '';
     getAllLayers().forEach((layer) => {
       if (layer.get('type') === 'WMS') {
-        layer.getSource().updateParams({ layers: layer.get('name'), CQL_FILTER: undefined });
+        layer.getSource().updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
       } else if (layer.get('type') === 'WFS') {
         setWfsFeaturesOnLayer(layer);
       }
