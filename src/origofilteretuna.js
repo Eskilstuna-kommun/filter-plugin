@@ -1,6 +1,6 @@
 import Origo from 'Origo';
-import isOverlapping from './utils/overlapping';
-import FtlMapper from './utils/ftl-mapper';
+import isOverlapping from './utils/overlapping.js';
+import FtlMapper from './utils/ftl-mapper.js';
 
 const Origofilteretuna = function Origofilteretuna(options = {}) {
   let viewer;
@@ -100,11 +100,11 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function getVisibleLayers() {
-    return viewer.getLayers().filter(layer => layerTypes.includes(layer.get('type')) && !excludedLayers.includes(layer.get('name')) && layer.get('visible') && !layer.get('ArcGIS'));
+    return viewer.getLayers().filter((layer) => layerTypes.includes(layer.get('type')) && !excludedLayers.includes(layer.get('name')) && layer.get('visible') && !layer.get('ArcGIS'));
   }
 
   function getAllLayers() {
-    return viewer.getLayers().filter(layer => layerTypes.includes(layer.get('type')) && !excludedLayers.includes(layer.get('name') && !layer.get('ArcGIS')));
+    return viewer.getLayers().filter((layer) => layerTypes.includes(layer.get('type')) && !excludedLayers.includes(layer.get('name') && !layer.get('ArcGIS')));
   }
 
   function getCqlFilterFromLayer(layer) {
@@ -123,7 +123,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function getNumberOfLayersWithFilter() {
-    return viewer.getLayers().filter(layer => getCqlFilterFromLayer(layer) !== '').length;
+    return viewer.getLayers().filter((layer) => getCqlFilterFromLayer(layer) !== '').length;
   }
 
   function setNumberOfLayersWithFilter(isEmbedded) {
@@ -194,7 +194,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     ].join('');
 
     const response = await fetch(url)
-      .then(res => res.json());
+      .then((res) => res.json());
 
     return response;
   }
@@ -232,10 +232,10 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     featureProps.forEach((prop) => {
       const obj = prop;
       if (ftlProps.length > 0) {
-        const matchingProp = ftlProps.find(f => f.name === obj.name);
+        const matchingProp = ftlProps.find((f) => f.name === obj.name);
         if (matchingProp) {
           obj.ftlValue = matchingProp.ftlValue;
-          ftlProps = ftlProps.filter(f => f.name !== matchingProp.name);
+          ftlProps = ftlProps.filter((f) => f.name !== matchingProp.name);
         }
       }
       newProps.push(obj);
@@ -243,7 +243,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     if (ftlProps.length > 0) {
       newProps.push(...ftlProps);
     }
-    return newProps.filter(prop => !excludedAttributes.includes(prop.name));
+    return newProps.filter((prop) => !excludedAttributes.includes(prop.name));
   }
 
   async function addAttributeRow(attribute, operator, value, firstRow) {
@@ -254,12 +254,12 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       if (!properties) {
         properties = await getProperties(selectedLayer);
       }
-      const attrIndex = properties.findIndex(prop => prop.name === attribute);
+      const attrIndex = properties.findIndex((prop) => prop.name === attribute);
       clone.querySelector(`#${attributeSelect.getId()}`).selectedIndex = attrIndex;
     }
 
     if (operator) {
-      const oprIndex = operators.findIndex(opr => opr === operator);
+      const oprIndex = operators.findIndex((opr) => opr === operator);
       clone.querySelector(`#${operatorSelect.getId()}`).selectedIndex = oprIndex;
     }
 
@@ -591,7 +591,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     addOperators();
     selectedLayer = viewer.getLayer(select.value);
     if (!addedListener) {
-      select.addEventListener('change', async evt => selectListener(evt));
+      select.addEventListener('change', async (evt) => selectListener(evt));
       addedListener = true;
     }
   }
