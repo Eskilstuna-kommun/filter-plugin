@@ -189,17 +189,24 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       });
     }
     const sourceUrl = getSourceUrl(layer);
-    const url = [
-      `${sourceUrl}`,
-      'wfs?service=WFS&version=1.1.0&request=GetFeature&outputFormat=application/json',
-      `&typeName=${layer.get('name').split('__')[0]}`,
-      `${filter ? `&CQL_FILTER=${filterArr.join(' ')}` : ''}`
-    ].join('');
+    const body = new URLSearchParams();
+    body.set('service', 'WFS');
+    body.set('version', '1.1.1');
+    body.set('request', 'GetFeature');
+    body.set('outputFormat', 'application/json');
+    body.set('typeNames', layer.get('name').split('__')[0]);
+    if (filter) {
+      body.set('CQL_FILTER', filterArr.join(' '));
+    }
 
-    const response = await fetch(url)
-      .then((res) => res.json());
+    const WFSOptions = {
+      method: 'POST',
+      body
+    };
 
-    return response;
+    const result = await fetch(`${sourceUrl}wfs?`, WFSOptions);
+    const JSONresult = await result.json();
+    return JSONresult;
   }
 
   async function getFeatureProps(layer) {
