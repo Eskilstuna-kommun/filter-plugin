@@ -1,6 +1,7 @@
 import Origo from 'Origo';
 import isOverlapping from './utils/overlapping.js';
 import FtlMapper from './utils/ftl-mapper.js';
+import customWMSLoadFunction from './utils/imageloadfunc.js';
 
 const Origofilteretuna = function Origofilteretuna(options = {}) {
   let viewer;
@@ -65,6 +66,8 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   const dom = Origo.ui.dom;
   const layerTypes = ['WMS', 'WFS'];
   const operators = [' = ', ' <> ', ' < ', ' > ', ' <= ', ' >= ', ' like ', ' between '];
+  let defaultWMSImageLoadFunction;
+  let defaultWMSTileLoadFunction;
 
   const hideButtonWhenEmbedded = 'hideButtonWhenEmbedded' in options ? options.hideButtonWhenEmbedded : false;
   const excludedAttributes = Object.prototype.hasOwnProperty.call(options, 'excludedAttributes') ? options.excludedAttributes : [];
@@ -186,17 +189,24 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       });
     }
     const sourceUrl = getSourceUrl(layer);
-    const url = [
-      `${sourceUrl}`,
-      'wfs?service=WFS&version=1.1.0&request=GetFeature&outputFormat=application/json',
-      `&typeName=${layer.get('name').split('__')[0]}`,
-      `${filter ? `&CQL_FILTER=${filterArr.join(' ')}` : ''}`
-    ].join('');
+    const body = new URLSearchParams();
+    body.set('service', 'WFS');
+    body.set('version', '1.1.1');
+    body.set('request', 'GetFeature');
+    body.set('outputFormat', 'application/json');
+    body.set('typeNames', layer.get('name').split('__')[0]);
+    if (filter) {
+      body.set('CQL_FILTER', filterArr.join(' '));
+    }
 
-    const response = await fetch(url)
-      .then((res) => res.json());
+    const WFSOptions = {
+      method: 'POST',
+      body
+    };
 
-    return response;
+    const result = await fetch(`${sourceUrl}wfs?`, WFSOptions);
+    const JSONresult = await result.json();
+    return JSONresult;
   }
 
   async function getFeatureProps(layer) {
@@ -408,6 +418,45 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     }
   }
 
+  /**
+   * If source url does not appear absolute
+   * then try to ascertain the current location origin/domain
+  */
+  function getAbsoluteSourceURL(src) {
+    let urlString = src.getUrl === 'function' ? src.getUrl() : src.getUrls()[0];
+
+    if (!urlString.startsWith('http')) {
+      urlString = window.location.origin.concat(urlString);
+    }
+    return urlString;
+  }
+
+  function setWMSLoadFunction(WMSSource, setDefaultFunction) {
+    if (WMSSource.imageLoadFunction) {
+      if (setDefaultFunction) {
+        WMSSource.setImageLoadFunction(defaultWMSImageLoadFunction);
+      } else WMSSource.setImageLoadFunction(customWMSLoadFunction);
+    } else if (WMSSource.tileLoadFunction) {
+      if (setDefaultFunction) {
+        WMSSource.setTileLoadFunction(defaultWMSTileLoadFunction);
+      } else WMSSource.setTileLoadFunction(customWMSLoadFunction);
+    }
+  }
+
+  function getWMSLoadFunction(WMSSource) {
+    const returnObj = {
+      WMSType: ''
+    };
+    if (WMSSource.imageLoadFunction) {
+      returnObj.WMSType = 'image';
+      returnObj.funct = WMSSource.getImageLoadFunction();
+      return returnObj;
+    }
+    returnObj.WMSType = 'tile';
+    returnObj.funct = WMSSource.getTileLoadFunction();
+    return returnObj;
+  }
+
   function createCqlFilter() {
     let filterString = '';
     if (mode === 'simple') {
@@ -432,7 +481,19 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     }
 
     if (selectedLayer.get('type') === 'WMS') {
-      selectedLayer.getSource().updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: filterString });
+      const WMSSource = selectedLayer.getSource();
+      WMSSource.setUrl(getAbsoluteSourceURL(WMSSource));
+
+      // if the current WMS layer does not already have the custom load function then save its original and then set the custom one
+      if (getWMSLoadFunction(WMSSource).funct !== customWMSLoadFunction) {
+        const defaultLoadFunctionObj = getWMSLoadFunction(WMSSource);
+        if (defaultLoadFunctionObj.WMSType === 'image') {
+          defaultWMSImageLoadFunction = defaultLoadFunctionObj.funct;
+        } else defaultWMSTileLoadFunction = defaultLoadFunctionObj.funct;
+        setWMSLoadFunction(WMSSource, false);
+      }
+
+      WMSSource.updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: filterString });
     } else if (selectedLayer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(selectedLayer, filterString);
     }
@@ -454,7 +515,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     document.getElementById(cqlStringTextarea.getId()).value = '';
 
     if (layer.get('type') === 'WMS') {
-      layer.getSource().updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
+      const WMSSource = layer.getSource();
+      setWMSLoadFunction(WMSSource, true);
+      WMSSource.updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
     } else if (layer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(layer);
     }
@@ -469,11 +532,14 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     setNumberOfLayersWithFilter();
   }
 
+  // this function needs revisioning. Why loop through all layers? The plugin should keep track of what layers have filters and target only those.
   function removeAllCqlFilter() {
     document.getElementById(cqlStringTextarea.getId()).value = '';
     getAllLayers().forEach((layer) => {
       if (layer.get('type') === 'WMS') {
-        layer.getSource().updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
+        const WMSSource = layer.getSource();
+        setWMSLoadFunction(WMSSource, true);
+        WMSSource.updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
       } else if (layer.get('type') === 'WFS') {
         setWfsFeaturesOnLayer(layer);
       }
