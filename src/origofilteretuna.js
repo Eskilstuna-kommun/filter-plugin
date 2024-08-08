@@ -514,6 +514,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function removeCqlFilter(layerName) {
+    if (!(currentlyFilteredLayers.some((layer) => layer.get('name') === layerName))) return;
     const layer = layerName ? viewer.getLayer(layerName) : selectedLayer;
     document.getElementById(cqlStringTextarea.getId()).value = '';
 
