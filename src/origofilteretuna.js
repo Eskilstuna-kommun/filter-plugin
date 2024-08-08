@@ -68,6 +68,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   const operators = [' = ', ' <> ', ' < ', ' > ', ' <= ', ' >= ', ' like ', ' between '];
   let defaultWMSImageLoadFunction;
   let defaultWMSTileLoadFunction;
+  const currentlyFilteredLayers = [];
 
   const hideButtonWhenEmbedded = 'hideButtonWhenEmbedded' in options ? options.hideButtonWhenEmbedded : false;
   const excludedAttributes = Object.prototype.hasOwnProperty.call(options, 'excludedAttributes') ? options.excludedAttributes : [];
@@ -104,10 +105,6 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
 
   function getVisibleLayers() {
     return viewer.getLayers().filter((layer) => layerTypes.includes(layer.get('type')) && !excludedLayers.includes(layer.get('name')) && layer.get('visible') && !layer.get('ArcGIS'));
-  }
-
-  function getAllLayers() {
-    return viewer.getLayers().filter((layer) => layerTypes.includes(layer.get('type')) && !excludedLayers.includes(layer.get('name') && !layer.get('ArcGIS')));
   }
 
   function getCqlFilterFromLayer(layer) {
@@ -387,19 +384,24 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     layerSource.addFeatures(layerSource.getFormat().readFeatures(features));
   }
 
+  function setIndicators(layerName, mapIsEmbedded) {
+    addFilterTagAndBackground(layerName);
+    setNumberOfLayersWithFilter(mapIsEmbedded);
+  }
+
   function setSharedFilters() {
-    filterJson.filters.forEach(async (filter) => {
+    filterJson.filters.forEach((filter) => {
       const layer = viewer.getLayer(filter.layerName);
       if (layer.get('type') === 'WMS') {
         layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
-        addFilterTagAndBackground(filter.layerName);
-        setNumberOfLayersWithFilter(viewer.getEmbedded());
+        setIndicators(filter.layerName, viewer.getEmbedded());
+        currentlyFilteredLayers.push(layer);
       } else if (layer.get('type') === 'WFS') {
         layer.getSource().once('change', () => {
           if (layer.getSource().getState() === 'ready') {
             setWfsFeaturesOnLayer(layer, filter.cqlFilter);
-            addFilterTagAndBackground(filter.layerName);
-            setNumberOfLayersWithFilter(viewer.getEmbedded());
+            setIndicators(filter.layerName, viewer.getEmbedded());
+            currentlyFilteredLayers.push(layer);
           }
         });
       }
@@ -499,6 +501,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     }
 
     if (getCqlFilterFromLayer(selectedLayer) !== '') {
+      currentlyFilteredLayers.push(selectedLayer);
       addFilterTagAndBackground(selectedLayer.get('name'));
       setNumberOfLayersWithFilter();
       removeFromJson(selectedLayer.get('name'));
@@ -526,16 +529,18 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     const selectedOption = select.querySelector(`option[value="${layerName}"]`);
     const index = layerName && selectedOption ? selectedOption.index : select.selectedIndex;
 
+    currentlyFilteredLayers.splice(currentlyFilteredLayers.indexOf(layer), 1);
     removeFilterTagAndBackground(index);
     removeAttributeRows();
     removeFromJson(layer.get('name'));
     setNumberOfLayersWithFilter();
   }
 
-  // this function needs revisioning. Why loop through all layers? The plugin should keep track of what layers have filters and target only those.
   function removeAllCqlFilter() {
     document.getElementById(cqlStringTextarea.getId()).value = '';
-    getAllLayers().forEach((layer) => {
+
+    for (let i = 0; i < currentlyFilteredLayers.length; i += 1) {
+      const layer = currentlyFilteredLayers[i];
       if (layer.get('type') === 'WMS') {
         const WMSSource = layer.getSource();
         setWMSLoadFunction(WMSSource, true);
@@ -543,7 +548,10 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       } else if (layer.get('type') === 'WFS') {
         setWfsFeaturesOnLayer(layer);
       }
-    });
+      currentlyFilteredLayers.splice(i, 1);
+      i -= 1;
+    }
+
     removeAllFilterTagsAndBackgrounds();
     removeAttributeRows();
     removeFromJson();
