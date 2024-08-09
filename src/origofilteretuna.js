@@ -118,8 +118,8 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         filter = params.CQL_FILTER;
       }
     } else if (layer.get('type') === 'WFS') {
-      if (layer.get('cqlFilter')) {
-        filter = layer.get('cqlFilter');
+      if (layer.get('ogccqlFilter')) {
+        filter = layer.get('ogccqlFilter');
       }
     }
     return filter;
@@ -196,7 +196,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     body.set('outputFormat', 'application/json');
     body.set('typeNames', layer.get('name').split('__')[0]);
     if (filter) {
-      body.set('CQL_FILTER', filterArr.join(' '));
+      body.set('FILTER', filterArr.join(' '));
     }
 
     const WFSOptions = {
@@ -338,7 +338,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       const node = document.createElement('li');
       node.id = filter.layerName;
       node.classList = 'rounded border text-smaller padding-small margin-top-small relative o-tooltip';
-      node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p><p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.cqlFilter}</p>${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
+      node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p><p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.ogccqlFilter}</p>${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
 
       const layer = viewer.getLayer(filter.layerName);
       if (!layer || !layer.get('visible')) {
@@ -379,7 +379,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   async function setWfsFeaturesOnLayer(layer, filter) {
-    layer.set('cqlFilter', filter);
+    layer.set('ogccqlFilter', filter);
     const features = await getWfsFeatures(layer, filter);
     const layerSource = layer.getSource();
 
@@ -391,13 +391,13 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     filterJson.filters.forEach(async (filter) => {
       const layer = viewer.getLayer(filter.layerName);
       if (layer.get('type') === 'WMS') {
-        layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+        layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.ogccqlFilter });
         addFilterTagAndBackground(filter.layerName);
         setNumberOfLayersWithFilter(viewer.getEmbedded());
       } else if (layer.get('type') === 'WFS') {
         layer.getSource().once('change', () => {
           if (layer.getSource().getState() === 'ready') {
-            setWfsFeaturesOnLayer(layer, filter.cqlFilter);
+            setWfsFeaturesOnLayer(layer, filter.ogc_Filter);
             addFilterTagAndBackground(filter.layerName);
             setNumberOfLayersWithFilter(viewer.getEmbedded());
           }
@@ -457,6 +457,32 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     return returnObj;
   }
 
+  function createOgcFilterOpr(opr) {
+    let oprProp;
+
+    if (opr === '=') {
+      oprProp = 'PropertyIsEqualTo';
+    } else if (opr === ' <> ') {
+      oprProp = 'PropertyIsNotEqualTo';
+    } else if (opr === ' < ') {
+      oprProp = 'PropertyIsLessThan';
+    } else if (opr === ' <= ') {
+      oprProp = 'PropertyIsLessThanOrEqualTo';
+    } else if (opr === ' > ') {
+      oprProp = 'PropertyIsGreaterThan';
+    } else if (opr === ' >= ') {
+      oprProp = 'PropertyIsGreaterThanOrEqualTo';
+    } else if (opr === ' like ') {
+      oprProp = 'PropertyIsLike';
+    } else if (opr === ' between ') {
+      oprProp = 'PropertyIsBetween';
+    } else {
+      oprProp = 'PropertyIsEqualTo';
+    }
+
+    return `${oprProp}`;
+  }
+
   function createCqlFilter() {
     let filterString = '';
     if (mode === 'simple') {
@@ -469,13 +495,16 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         const opr = row.querySelector(`#${operatorSelect.getId()}`).value;
         const val = row.querySelector('input').value;
 
-        if (val !== '') {
+        if (val !== '' && selectedLayer.get('type') === 'WMS') {
           filters.push(`${att}${opr}'${val}'`);
+          filterString = filters.join(` ${logic} `);
+          document.getElementById(cqlStringTextarea.getId()).value = filterString;
+        } else if (selectedLayer.get('type') === 'WFS') {
+          filters.push(`<${createOgcFilterOpr(opr)}><PropertyName>${att}</PropertyName><Literal>${val}</Literal></${createOgcFilterOpr(opr)}>`);
+          filterString = (`<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc"><ogc:${logic}>${filters.join('')}</ogc:${logic}></ogc:Filter>`);
+          document.getElementById(cqlStringTextarea.getId()).value = filterString;
         }
       });
-
-      filterString = filters.join(` ${logic} `);
-      document.getElementById(cqlStringTextarea.getId()).value = filterString;
     } else if (mode === 'advanced') {
       filterString = document.getElementById(cqlStringTextarea.getId()).value;
     }
@@ -505,7 +534,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       filterJson.filters.push({
         title: selectedLayer.get('title'),
         layerName: selectedLayer.get('name'),
-        cqlFilter: filterString
+        ogccqlFilter: filterString
       });
     }
   }
@@ -942,7 +971,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
           padding: '0.2rem',
           'font-size': '0.7rem'
         },
-        innerHTML: '<option value="OR">något</option><option value="AND">alla</option>'
+        innerHTML: '<option value="Or">något</option><option value="And">alla</option>'
       });
 
       dividerTop = Origo.ui.Element({
@@ -1135,7 +1164,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       advancedText = Origo.ui.Element({
         tagName: 'p',
         cls: 'text-smaller',
-        innerHTML: 'CQL-sträng:'
+        innerHTML: 'Filtersträng:'
       });
 
       cqlStringTextarea = Origo.ui.Textarea({
