@@ -338,8 +338,47 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       const node = document.createElement('li');
       node.id = filter.layerName;
       node.classList = 'rounded border text-smaller padding-small margin-top-small relative o-tooltip';
-      node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p><p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.ogccqlFilter}</p>${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
 
+      // Create the first paragraph (Lager)
+      const firstParagraph = document.createElement('p');
+      firstParagraph.style.overflowWrap = 'break-word';
+      firstParagraph.style.width = '18rem';
+
+      const lagerSpan = document.createElement('span');
+      lagerSpan.className = 'text-weight-bold';
+      lagerSpan.textContent = 'Lager: ';
+
+      firstParagraph.appendChild(lagerSpan);
+      firstParagraph.appendChild(document.createTextNode(filter.title));
+
+      // Create the second paragraph (Filter)
+      const secondParagraph = document.createElement('p');
+      secondParagraph.style.overflowWrap = 'break-word';
+
+      const filterSpan = document.createElement('span');
+      filterSpan.className = 'text-weight-bold';
+      filterSpan.textContent = 'Filter: ';
+
+      secondParagraph.appendChild(filterSpan);
+      secondParagraph.appendChild(document.createTextNode(filter.ogccqlFilter));
+
+      // Append paragraphs to the list item
+      node.appendChild(firstParagraph);
+      node.appendChild(secondParagraph);
+
+      // Convert HTML strings to DOM nodes and append them to the list item
+      const tempContainer = document.createElement('div');
+
+      tempContainer.innerHTML = myFilterRemoveButton.render();
+      node.appendChild(tempContainer.firstElementChild);
+
+      tempContainer.innerHTML = myFilterEditButton.render();
+      node.appendChild(tempContainer.firstElementChild);
+
+      tempContainer.innerHTML = myFilterDisplayButton.render();
+      node.appendChild(tempContainer.firstElementChild);
+
+      // Handle visibility and disabling of buttons based on layer visibility
       const layer = viewer.getLayer(filter.layerName);
       if (!layer || !layer.get('visible')) {
         node.querySelector('.edit-filter').classList.add('disabled');
@@ -347,6 +386,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       } else {
         node.querySelector('.display-filter').classList.add('o-hidden');
       }
+      // Append the list item to the filter list
       document.getElementById(myFilterList.getId()).appendChild(node);
     });
   }
@@ -487,6 +527,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     let filterString = '';
     if (mode === 'simple') {
       const filters = [];
+      const filters2 = [];
       const rows = Array.from(document.getElementsByClassName('attributeRow'));
       const logic = document.getElementById(logicSelect.getId()).value;
 
@@ -526,6 +567,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     } else if (selectedLayer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(selectedLayer, filterString);
     }
+    console.log('selectedLayer:', selectedLayer);
 
     if (getCqlFilterFromLayer(selectedLayer) !== '') {
       addFilterTagAndBackground(selectedLayer.get('name'));
@@ -692,6 +734,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function setMode(modeString) {
+    if (mode === modeString) {
+      return;
+    }
     mode = modeString;
 
     if (mode === 'simple') {
@@ -738,6 +783,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
             select.dispatchEvent(new Event('change'));
 
             const filterString = getCqlFilterFromLayer(layer);
+            console.log('filterStringFromLayer: ', filterString);
             const hasOR = filterString.includes(' OR ');
             const hasAND = filterString.includes(' AND ');
 
