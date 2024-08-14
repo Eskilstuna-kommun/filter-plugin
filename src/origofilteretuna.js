@@ -2,6 +2,7 @@ import Origo from 'Origo';
 import isOverlapping from './utils/overlapping.js';
 import FtlMapper from './utils/ftl-mapper.js';
 import customWMSLoadFunction from './utils/imageloadfunc.js';
+import getAbsoluteSourceURL from './utils/absolute_url.js';
 
 const Origofilteretuna = function Origofilteretuna(options = {}) {
   let viewer;
@@ -66,8 +67,16 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   const dom = Origo.ui.dom;
   const layerTypes = ['WMS', 'WFS'];
   const operators = [' = ', ' <> ', ' < ', ' > ', ' <= ', ' >= ', ' like ', ' between '];
-  let defaultWMSImageLoadFunction;
-  let defaultWMSTileLoadFunction;
+  // https://openlayers.org/en/latest/apidoc/module-ol_Image.html#~LoadFunction
+  // https://openlayers.org/en/latest/apidoc/module-ol_Tile.html#~LoadFunction
+  const defaultWMSImageLoadFunction = function defaultWMSImageLoadFunction(image, src) {
+    const WMSImage = image;
+    WMSImage.getImage().src = src;
+  };
+  const defaultWMSTileLoadFunction = (function defaultWMSTileLoadFunction(tile, src) {
+    const WMSTile = tile;
+    WMSTile.getImage().src = src;
+  });
   const currentlyFilteredLayers = [];
 
   const hideButtonWhenEmbedded = 'hideButtonWhenEmbedded' in options ? options.hideButtonWhenEmbedded : false;
@@ -389,50 +398,12 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     setNumberOfLayersWithFilter(mapIsEmbedded);
   }
 
-  function setSharedFilters() {
-    filterJson.filters.forEach((filter) => {
-      const layer = viewer.getLayer(filter.layerName);
-      if (layer.get('type') === 'WMS') {
-        layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
-        setIndicators(filter.layerName, viewer.getEmbedded());
-        currentlyFilteredLayers.push(layer);
-      } else if (layer.get('type') === 'WFS') {
-        layer.getSource().once('change', () => {
-          if (layer.getSource().getState() === 'ready') {
-            setWfsFeaturesOnLayer(layer, filter.cqlFilter);
-            setIndicators(filter.layerName, viewer.getEmbedded());
-            currentlyFilteredLayers.push(layer);
-          }
-        });
-      }
-    });
-  }
-
-  function removeFromJson(layerName) {
-    if (layerName) {
-      filterJson.filters.forEach((filter, index) => {
-        if (filter.layerName === layerName) {
-          filterJson.filters.splice(index, 1);
-        }
-      });
-    } else {
-      filterJson = { filters: [] };
-    }
-  }
-
   /**
-   * If source url does not appear absolute
-   * then try to ascertain the current location origin/domain
-  */
-  function getAbsoluteSourceURL(src) {
-    let urlString = src.getUrl === 'function' ? src.getUrl() : src.getUrls()[0];
-
-    if (!urlString.startsWith('http')) {
-      urlString = window.location.origin.concat(urlString);
-    }
-    return urlString;
-  }
-
+   * Sets the load function for a WMS source.
+   *
+   * @param {Object} WMSSource - The WMS source object.
+   * @param {Boolean} setDefaultFunction - Whether to set the predefineddefault load function or a custom one.
+   */
   function setWMSLoadFunction(WMSSource, setDefaultFunction) {
     if (WMSSource.imageLoadFunction) {
       if (setDefaultFunction) {
@@ -457,6 +428,82 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     returnObj.WMSType = 'tile';
     returnObj.funct = WMSSource.getTileLoadFunction();
     return returnObj;
+  }
+
+  /**
+   * Checks if a layer has another (than this plugin's) custom WMS load function with a POST request.
+   * Checks for the Origo requestMethod param and if necessary the function itself for the 'post' keyword
+   *
+   * @param {Object} layer - The layer object to check.
+   * @return {Boolean} True if the layer has another custom WMS load function with a POST request, false otherwise.
+   */
+  function hasOtherCustomWMSLoadFunctionWithPost(layer) {
+    const mapSources = viewer.getMapSource();
+    const sourceName = layer.get('sourceName');
+    if ((mapSources[sourceName]?.requestMethod) && (mapSources[sourceName].requestMethod.toLowerCase() === 'post')) {
+      return true;
+    }
+    if (layer.get('requestMethod') && (layer.get('requestMethod').toLowerCase() === 'post')) {
+      return true;
+    }
+    const obj = getWMSLoadFunction(layer.getSource());
+    if (obj.funct !== customWMSLoadFunction) {
+      if ((obj.funct.toString().includes('post')) || (obj.funct.toString().includes('POST'))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function setWMSLoadFunctionIfNeeded(WMSSource, layer) {
+    const usesPost = hasOtherCustomWMSLoadFunctionWithPost(layer);
+    const WMSSourceLoadFunctionObj = getWMSLoadFunction(WMSSource);
+    if ((WMSSourceLoadFunctionObj.funct !== customWMSLoadFunction) && (!(usesPost))) {
+      setWMSLoadFunction(WMSSource, false);
+    }
+  }
+
+  function setSharedFilters() {
+    filterJson.filters.forEach((filter) => {
+      const layer = viewer.getLayer(filter.layerName);
+      if (layer.get('type') === 'WMS') {
+        const WMSSource = layer.getSource();
+        setWMSLoadFunctionIfNeeded(WMSSource, layer);
+        let paramsUpdated = false;
+
+        if (layer.getSource().getState() === 'ready') {
+          layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+          paramsUpdated = true;
+        }
+        if (!(paramsUpdated)) {
+          layer.getSource().once('change', () => {
+            layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+          });
+        }
+        setIndicators(filter.layerName, viewer.getEmbedded());
+        currentlyFilteredLayers.push(layer);
+      } else if (layer.get('type') === 'WFS') {
+        layer.getSource().once('change', () => {
+          if (layer.getSource().getState() === 'ready') {
+            setWfsFeaturesOnLayer(layer, filter.cqlFilter);
+            setIndicators(filter.layerName, viewer.getEmbedded());
+            currentlyFilteredLayers.push(layer);
+          }
+        });
+      }
+    });
+  }
+
+  function removeFromJson(layerName) {
+    if (layerName) {
+      filterJson.filters.forEach((filter, index) => {
+        if (filter.layerName === layerName) {
+          filterJson.filters.splice(index, 1);
+        }
+      });
+    } else {
+      filterJson = { filters: [] };
+    }
   }
 
   function createCqlFilter() {
@@ -485,16 +532,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     if (selectedLayer.get('type') === 'WMS') {
       const WMSSource = selectedLayer.getSource();
       WMSSource.setUrl(getAbsoluteSourceURL(WMSSource));
-
-      // if the current WMS layer does not already have the custom load function then save its original and then set the custom one
-      if (getWMSLoadFunction(WMSSource).funct !== customWMSLoadFunction) {
-        const defaultLoadFunctionObj = getWMSLoadFunction(WMSSource);
-        if (defaultLoadFunctionObj.WMSType === 'image') {
-          defaultWMSImageLoadFunction = defaultLoadFunctionObj.funct;
-        } else defaultWMSTileLoadFunction = defaultLoadFunctionObj.funct;
-        setWMSLoadFunction(WMSSource, false);
-      }
-
+      setWMSLoadFunctionIfNeeded(WMSSource, selectedLayer);
       WMSSource.updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: filterString });
     } else if (selectedLayer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(selectedLayer, filterString);
@@ -514,13 +552,17 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function removeCqlFilter(layerName) {
-    const layer = layerName ? viewer.getLayer(layerName) : selectedLayer;
+    const theLayerName = layerName || selectedLayer.get('name');
+    if (!(currentlyFilteredLayers.some((layer) => layer.get('name') === theLayerName))) return;
+    const layer = selectedLayer || viewer.getLayer(layerName);
     document.getElementById(cqlStringTextarea.getId()).value = '';
 
     if (layer.get('type') === 'WMS') {
       const WMSSource = layer.getSource();
-      setWMSLoadFunction(WMSSource, true);
       WMSSource.updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
+      if (!(hasOtherCustomWMSLoadFunctionWithPost(layer))) {
+        setWMSLoadFunction(WMSSource, true);
+      }
     } else if (layer.get('type') === 'WFS') {
       setWfsFeaturesOnLayer(layer);
     }
@@ -543,7 +585,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       const layer = currentlyFilteredLayers[i];
       if (layer.get('type') === 'WMS') {
         const WMSSource = layer.getSource();
-        setWMSLoadFunction(WMSSource, true);
+        if (!(hasOtherCustomWMSLoadFunctionWithPost(layer))) {
+          setWMSLoadFunction(WMSSource, true);
+        }
         WMSSource.updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
       } else if (layer.get('type') === 'WFS') {
         setWfsFeaturesOnLayer(layer);

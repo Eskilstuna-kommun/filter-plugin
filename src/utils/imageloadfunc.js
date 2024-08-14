@@ -1,5 +1,7 @@
+import getAbsoluteSourceURL from './absolute_url.js';
+
 async function imageLoadFunction(loadedImage, src) {
-  const url = new URL(src.split('?')[0]);
+  const url = new URL(getAbsoluteSourceURL(src).split('?')[0]);
   let objectUrl;
   const img = loadedImage.getImage();
 
