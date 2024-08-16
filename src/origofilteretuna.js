@@ -420,7 +420,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     const returnObj = {
       WMSType: ''
     };
-    if (WMSSource.imageLoadFunction) {
+    if (WMSSource.getImageLoadFunction) {
       returnObj.WMSType = 'image';
       returnObj.funct = WMSSource.getImageLoadFunction();
       return returnObj;
@@ -469,17 +469,21 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       if (layer.get('type') === 'WMS') {
         const WMSSource = layer.getSource();
         setWMSLoadFunctionIfNeeded(WMSSource, layer);
-        let paramsUpdated = false;
 
-        if (layer.getSource().getState() === 'ready') {
-          layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
-          paramsUpdated = true;
-        }
-        if (!(paramsUpdated)) {
-          layer.getSource().once('change', () => {
-            layer.getSource().updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+        // Unless we wait a suitable amount of time the CQL-filtered tiles will load first, then Origo will load the filterless tiles instead
+        // tileloadend from the source may seem a bit arbitrary but postrender fires both too early and later, at least if tiles
+        // and watching the source for a change can be hazardous if Origo gets more time to load tiles/images before the plugin arrives
+        const loadFunctionObj = getWMSLoadFunction(WMSSource);
+        if (loadFunctionObj.WMSType === 'image') {
+          WMSSource.once('imageloadend', () => {
+            WMSSource.updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+          });
+        } else if (loadFunctionObj.WMSType === 'tile') {
+          WMSSource.once('tileloadend', () => {
+            WMSSource.updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
           });
         }
+
         setIndicators(filter.layerName, viewer.getEmbedded());
         currentlyFilteredLayers.push(layer);
       } else if (layer.get('type') === 'WFS') {
