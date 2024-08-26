@@ -509,22 +509,21 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       if (layer.get('type') === 'WMS') {
         const WMSSource = layer.getSource();
         setWMSLoadFunctionIfNeeded(WMSSource, layer);
-
-        // Unless we wait a suitable amount of time the CQL-filtered tiles will load first, then Origo will load the filterless tiles instead
-        // tileloadend from the source may seem a bit arbitrary but postrender fires both too early and later, at least if tiles
-        // and watching the source for a change can be hazardous if Origo gets more time to load tiles/images before the plugin arrives
         const loadFunctionObj = getWMSLoadFunction(WMSSource);
+        // since the layer will likely be loading at this stage timing the updateParams call can be tricky.
+        // too early and tiles with the filter will load before being replaced by tiles without the filter
+        // the below event seems to happen even if a several-second delay is introduced after Origo has loaded and before the plugin is added
         if (loadFunctionObj.WMSType === 'image') {
           WMSSource.once('imageloadend', () => {
             WMSSource.updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+            setIndicators(filter.layerName, viewer.getEmbedded());
           });
         } else if (loadFunctionObj.WMSType === 'tile') {
           WMSSource.once('tileloadend', () => {
             WMSSource.updateParams({ layers: filter.layerName, CQL_FILTER: filter.cqlFilter });
+            setIndicators(filter.layerName, viewer.getEmbedded());
           });
         }
-
-        setIndicators(filter.layerName, viewer.getEmbedded());
         currentlyFilteredLayers.push(layer);
       } else if (layer.get('type') === 'WFS') {
         layer.getSource().once('change', () => {
