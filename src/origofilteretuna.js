@@ -64,7 +64,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   let mode = 'simple';
   let ftlMapper;
   const name = 'origofilteretuna';
-  const dom = Origo.ui.dom;
+  const ui = Origo.ui;
   const layerTypes = ['WMS', 'WFS'];
   const operators = [' = ', ' <> ', ' < ', ' > ', ' <= ', ' >= ', ' like ', ' between '];
   // https://openlayers.org/en/latest/apidoc/module-ol_Image.html#~LoadFunction
@@ -124,8 +124,8 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         filter = params.CQL_FILTER;
       }
     } else if (layer.get('type') === 'WFS') {
-      if (layer.get('ogccqlFilter')) {
-        filter = layer.get('ogccqlFilter');
+      if (layer.get('cqlFilter')) {
+        filter = layer.get('cqlFilter');
       }
     }
     return filter;
@@ -195,19 +195,25 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       });
     }
     const sourceUrl = getSourceUrl(layer);
-    const body = new URLSearchParams();
-    body.set('service', 'WFS');
-    body.set('version', '1.1.1');
-    body.set('request', 'GetFeature');
-    body.set('outputFormat', 'application/json');
-    body.set('typeNames', layer.get('name').split('__')[0]);
+
+    const wfsBody = {
+      service: 'WFS',
+      version: '1.1.1',
+      request: 'GetFeature',
+      outputFormat: 'application/json',
+      typeNames: layer.get('name').split('__')[0]
+    };
+
     if (filter) {
-      body.set('FILTER', filterArr.join(' '));
+      wfsBody.FILTER = filterArr.join(' ');
     }
 
     const WFSOptions = {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
       method: 'POST',
-      body
+      body: new URLSearchParams(wfsBody).toString().replace(/\+/g, '%20')
     };
 
     const result = await fetch(`${sourceUrl}wfs?`, WFSOptions);
@@ -344,47 +350,10 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       const node = document.createElement('li');
       node.id = filter.layerName;
       node.classList = 'rounded border text-smaller padding-small margin-top-small relative o-tooltip';
+      node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p>
+<p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.cqlFilter}</p>
+${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
 
-      // Create the first paragraph (Lager)
-      const firstParagraph = document.createElement('p');
-      firstParagraph.style.overflowWrap = 'break-word';
-      firstParagraph.style.width = '18rem';
-
-      const lagerSpan = document.createElement('span');
-      lagerSpan.className = 'text-weight-bold';
-      lagerSpan.textContent = 'Lager: ';
-
-      firstParagraph.appendChild(lagerSpan);
-      firstParagraph.appendChild(document.createTextNode(filter.title));
-
-      // Create the second paragraph (Filter)
-      const secondParagraph = document.createElement('p');
-      secondParagraph.style.overflowWrap = 'break-word';
-
-      const filterSpan = document.createElement('span');
-      filterSpan.className = 'text-weight-bold';
-      filterSpan.textContent = 'Filter: ';
-
-      secondParagraph.appendChild(filterSpan);
-      secondParagraph.appendChild(document.createTextNode(filter.ogccqlFilter));
-
-      // Append paragraphs to the list item
-      node.appendChild(firstParagraph);
-      node.appendChild(secondParagraph);
-
-      // Convert HTML strings to DOM nodes and append them to the list item
-      const tempContainer = document.createElement('div');
-
-      tempContainer.innerHTML = myFilterRemoveButton.render();
-      node.appendChild(tempContainer.firstElementChild);
-
-      tempContainer.innerHTML = myFilterEditButton.render();
-      node.appendChild(tempContainer.firstElementChild);
-
-      tempContainer.innerHTML = myFilterDisplayButton.render();
-      node.appendChild(tempContainer.firstElementChild);
-
-      // Handle visibility and disabling of buttons based on layer visibility
       const layer = viewer.getLayer(filter.layerName);
       if (!layer || !layer.get('visible')) {
         node.querySelector('.edit-filter').classList.add('disabled');
@@ -392,8 +361,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       } else {
         node.querySelector('.display-filter').classList.add('o-hidden');
       }
-      // Append the list item to the filter list
-      document.getElementById(myFilterList.getId()).appendChild(node);
+      document.getElementById(myFilterList.getId()).append(node);
     });
   }
 
@@ -424,9 +392,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     });
   }
 
-  async function setWfsFeaturesOnLayer(layer, filter) {
-    layer.set('ogccqlFilter', filter);
-    const features = await getWfsFeatures(layer, filter);
+  async function setWfsFeaturesOnLayer({ layer, cqlFilter, ogcFilter }) {
+    layer.set('cqlFilter', cqlFilter);
+    const features = await getWfsFeatures(layer, ogcFilter);
     const layerSource = layer.getSource();
 
     layerSource.clear(true);
@@ -526,12 +494,10 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         }
         currentlyFilteredLayers.push(layer);
       } else if (layer.get('type') === 'WFS') {
-        layer.getSource().once('change', () => {
-          if (layer.getSource().getState() === 'ready') {
-            setWfsFeaturesOnLayer(layer, filter.cqlFilter);
-            setIndicators(filter.layerName, viewer.getEmbedded());
-            currentlyFilteredLayers.push(layer);
-          }
+        layer.getSource().once('featuresloadend', () => {
+          setWfsFeaturesOnLayer({ layer, cqlFilter: filter.cqlFilter, ogcFilter: filter.ogcFilter });
+          setIndicators(filter.layerName, viewer.getEmbedded());
+          currentlyFilteredLayers.push(layer);
         });
       }
     });
@@ -549,68 +515,91 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     }
   }
 
+  const cqlOgcTable = {
+    '=': 'PropertyIsEqualTo',
+    '<>': 'PropertyIsNotEqualTo',
+    '<': 'PropertyIsLessThan',
+    '<=': 'PropertyIsLessThanOrEqualTo',
+    '>': 'PropertyIsGreaterThan',
+    '>=': 'PropertyIsGreaterThanOrEqualTo',
+    like: 'PropertyIsLike',
+    between: 'PropertyIsBetween'
+  };
   function createOgcFilterOpr(opr) {
-    let oprProp;
-
-    if (opr === '=') {
-      oprProp = 'PropertyIsEqualTo';
-    } else if (opr === ' <> ') {
-      oprProp = 'PropertyIsNotEqualTo';
-    } else if (opr === ' < ') {
-      oprProp = 'PropertyIsLessThan';
-    } else if (opr === ' <= ') {
-      oprProp = 'PropertyIsLessThanOrEqualTo';
-    } else if (opr === ' > ') {
-      oprProp = 'PropertyIsGreaterThan';
-    } else if (opr === ' >= ') {
-      oprProp = 'PropertyIsGreaterThanOrEqualTo';
-    } else if (opr === ' like ') {
-      oprProp = 'PropertyIsLike';
-    } else if (opr === ' between ') {
-      oprProp = 'PropertyIsBetween';
-    } else {
-      oprProp = 'PropertyIsEqualTo';
-    }
-
-    return `${oprProp}`;
+    return cqlOgcTable[opr.trim()];
   }
 
   function createCqlFilter() {
-    let filterString = '';
-    if (mode === 'simple') {
-      const filters = [];
-      const filters2 = [];
+    let cqlFilterString = '';
+    let ogcFilterString = '';
+
+    const getCqlFilterFromSimpleView = function getCqlFilterFromSimpleView() {
       const rows = Array.from(document.getElementsByClassName('attributeRow'));
       const logic = document.getElementById(logicSelect.getId()).value;
+      const filters = [];
 
       rows.forEach((row) => {
         const att = row.querySelector(`#${attributeSelect.getId()}`).value;
         const opr = row.querySelector(`#${operatorSelect.getId()}`).value;
         const val = row.querySelector('input').value;
+        if (val === '') return;
 
-        if (val !== '' && selectedLayer.get('type') === 'WMS') {
-          filters.push(`${att}${opr}'${val}'`);
-          filterString = filters.join(` ${logic} `);
-          document.getElementById(cqlStringTextarea.getId()).value = filterString;
-        } else if (selectedLayer.get('type') === 'WFS') {
-          filters.push(`<${createOgcFilterOpr(opr)}><PropertyName>${att}</PropertyName><Literal>${val}</Literal></${createOgcFilterOpr(opr)}>`);
-          filterString = (`<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc"><ogc:${logic}>${filters.join('')}</ogc:${logic}></ogc:Filter>`);
-          document.getElementById(cqlStringTextarea.getId()).value = filterString;
-        }
+        filters.push({
+          att,
+          opr,
+          val
+        });
       });
+
+      return {
+        filters,
+        logic
+      };
+    };
+
+    const getOgcFilterString = function getOgcFilterString({ filters, logic }) {
+      const ogcLogicOpr = logic.charAt(0) + logic.slice(1).toLowerCase();
+      const ogcFiltersString = filters.reduce((acc, obj) => {
+        let startString = `<${createOgcFilterOpr(obj.opr)}`;
+        if (obj.opr === ' like ') {
+          startString += ' wildCard="*" singleChar="." escape="!">';
+          const innerObj = obj;
+          innerObj.val = innerObj.val.replaceAll('%', '*');
+        } else startString += '>';
+        return `${acc}${startString}<PropertyName>${obj.att}</PropertyName><Literal>${obj.val}</Literal></${createOgcFilterOpr(obj.opr)}>`;
+      }, '');
+
+      ogcFilterString = `<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc"><ogc:${ogcLogicOpr}>${ogcFiltersString}</ogc:${ogcLogicOpr}></ogc:Filter>`;
+      return ogcFilterString;
+    };
+
+    if (mode === 'simple') {
+      const { filters, logic } = getCqlFilterFromSimpleView();
+
+      const cqlRowArray = filters.map((filter) => `${filter.att}${filter.opr}'${filter.val}'`);
+      cqlFilterString = cqlRowArray.join(` ${logic} `);
+
+      if (selectedLayer.get('type') === 'WFS') {
+        ogcFilterString = getOgcFilterString({ filters, logic });
+      }
+      document.getElementById(cqlStringTextarea.getId()).value = cqlFilterString;
     } else if (mode === 'advanced') {
-      filterString = document.getElementById(cqlStringTextarea.getId()).value;
+      cqlFilterString = document.getElementById(cqlStringTextarea.getId()).value;
+
+      if (selectedLayer.get('type') === 'WFS') {
+        setAttributeRowsToFilter(cqlFilterString);
+        ogcFilterString = getOgcFilterString(getCqlFilterFromSimpleView());
+      }
     }
 
     if (selectedLayer.get('type') === 'WMS') {
       const WMSSource = selectedLayer.getSource();
       WMSSource.setUrl(getAbsoluteSourceURL(WMSSource));
       setWMSLoadFunctionIfNeeded(WMSSource, selectedLayer);
-      WMSSource.updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: filterString });
+      WMSSource.updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: cqlFilterString });
     } else if (selectedLayer.get('type') === 'WFS') {
-      setWfsFeaturesOnLayer(selectedLayer, filterString);
+      setWfsFeaturesOnLayer({ layer: selectedLayer, cqlFilter: cqlFilterString, ogcFilter: ogcFilterString });
     }
-    console.log('selectedLayer:', selectedLayer);
 
     if (getCqlFilterFromLayer(selectedLayer) !== '') {
       currentlyFilteredLayers.push(selectedLayer);
@@ -620,9 +609,11 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       filterJson.filters.push({
         title: selectedLayer.get('title'),
         layerName: selectedLayer.get('name'),
-        ogccqlFilter: filterString
+        cqlFilter: cqlFilterString,
+        ogcFilter: ogcFilterString
       });
     }
+    //
   }
 
   function removeCqlFilter(layerName) {
@@ -638,7 +629,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         setWMSLoadFunction(WMSSource, true);
       }
     } else if (layer.get('type') === 'WFS') {
-      setWfsFeaturesOnLayer(layer);
+      setWfsFeaturesOnLayer({ layer });
     }
 
     const select = document.getElementById(layerSelect.getId());
@@ -664,7 +655,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         }
         WMSSource.updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
       } else if (layer.get('type') === 'WFS') {
-        setWfsFeaturesOnLayer(layer);
+        setWfsFeaturesOnLayer({ layer });
       }
       currentlyFilteredLayers.splice(i, 1);
       i -= 1;
@@ -789,7 +780,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function setMode(modeString) {
-    if (mode === modeString) {
+    if ((mode === modeString) && (modeString !== 'myfilter')) {
       return;
     }
     mode = modeString;
@@ -838,7 +829,6 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
             select.dispatchEvent(new Event('change'));
 
             const filterString = getCqlFilterFromLayer(layer);
-            console.log('filterStringFromLayer: ', filterString);
             const hasOR = filterString.includes(' OR ');
             const hasAND = filterString.includes(' AND ');
 
@@ -1072,7 +1062,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
           padding: '0.2rem',
           'font-size': '0.7rem'
         },
-        innerHTML: '<option value="Or">något</option><option value="And">alla</option>'
+        innerHTML: '<option value="OR">något</option><option value="AND">alla</option>'
       });
 
       dividerTop = Origo.ui.Element({
@@ -1394,10 +1384,10 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       }
     },
     render() {
-      document.getElementById(target).appendChild(dom.html(filterDiv.render()));
-      document.getElementById(filterDiv.getId()).appendChild(dom.html(filterButton.render()));
-      document.getElementById(viewer.getMain().getId()).appendChild(dom.html(filterBox.render()));
-      document.getElementById(filterBox.getId()).appendChild(dom.html(filterBoxContent.render()));
+      document.getElementById(target).appendChild(ui.dom.html(filterDiv.render()));
+      document.getElementById(filterDiv.getId()).appendChild(ui.dom.html(filterButton.render()));
+      document.getElementById(viewer.getMain().getId()).appendChild(ui.dom.html(filterBox.render()));
+      document.getElementById(filterBox.getId()).appendChild(ui.dom.html(filterBoxContent.render()));
 
       document.getElementById(createFilterButton.getId()).addEventListener('click', () => createCqlFilter());
       document.getElementById(removeFilterButton.getId()).addEventListener('click', () => removeCqlFilter());
