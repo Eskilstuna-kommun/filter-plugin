@@ -466,6 +466,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   function setSharedFilters() {
     filterJson.filters.forEach((filter) => {
       const layer = viewer.getLayer(filter.layerName);
+      if (!layer) return;
       if (layer.get('type') === 'WMS') {
         const WMSSource = layer.getSource();
         setWMSLoadFunctionIfNeeded(WMSSource, layer);
