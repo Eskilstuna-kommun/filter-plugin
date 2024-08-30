@@ -93,7 +93,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   const warningTextColor = Object.prototype.hasOwnProperty.call(options, 'warningTextColor') ? options.warningTextColor : '#000000';
   const warningText = Object.prototype.hasOwnProperty.call(options, 'warningText') ? options.warningText : 'OBS!';
   const geoserverUrl = Object.prototype.hasOwnProperty.call(options, 'geoserverUrl') ? options.geoserverUrl : undefined;
-
+  const wfsSharedFilterDelay = Object.prototype.hasOwnProperty.call(options, 'wfsSharedFilterDelay') ? options.wfsSharedFilterDelay : 5;
   function handleOverlapping() {
     if (document.getElementsByClassName('o-search').length > 0) {
       const search = document.getElementsByClassName('o-search')[0];
@@ -494,11 +494,11 @@ ${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayB
         }
         currentlyFilteredLayers.push(layer);
       } else if (layer.get('type') === 'WFS') {
-        layer.getSource().once('featuresloadend', () => {
+        setTimeout(() => { // Haven't found an event / a better way that works with and without a delay between Origo loading and the plugin loading
           setWfsFeaturesOnLayer({ layer, cqlFilter: filter.cqlFilter, ogcFilter: filter.ogcFilter });
           setIndicators(filter.layerName, viewer.getEmbedded());
           currentlyFilteredLayers.push(layer);
-        });
+        }, wfsSharedFilterDelay);
       }
     });
   }

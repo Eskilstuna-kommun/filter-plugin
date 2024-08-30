@@ -24,6 +24,7 @@ För filtrering på WFS från Geoserver krävs att lagret eller dess source har 
 - warningTextColor: Färg på texten för attribut-varningen. **Valfri**.
 - warningText: Text som ska visas i attribut-varningen. **Valfri**.
 - geoserverUrl: URL till Geoservers . Ex. https://localhost/geoserver. Denna måste vara angiven för att kunna hämta och mappa FTL till attribut. Både /geoserver/rest/layers och /geoserver/rest/workspaces måste vara tillgängligt för GET-anrop. **Valfri**.
+- wfsSharedFilterDelay: Tid i millisekunder pluginen väntar med att applicera ett WFS-filter vid öppnande av delad karta (för att inte krocka med Origos laddning av samma lager) (i brist på passande event). Default är 5. **Valfri**
 
 **Material icons som används:**
 - ic_delete_24px
