@@ -557,7 +557,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   function removeCqlFilter(layerName) {
     const theLayerName = layerName || selectedLayer.get('name');
     if (!(currentlyFilteredLayers.some((layer) => layer.get('name') === theLayerName))) return;
-    const layer = selectedLayer || viewer.getLayer(layerName);
+    const layer = viewer.getLayer(layerName) || selectedLayer;
     document.getElementById(cqlStringTextarea.getId()).value = '';
 
     if (layer.get('type') === 'WMS') {
