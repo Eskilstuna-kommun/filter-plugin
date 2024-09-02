@@ -10,21 +10,21 @@ För filtrering på WFS från Geoserver krävs att lagret eller dess source har 
 ```
 
 **Parametrar:**
-- hideButtonWhenEmbedded: Huruvida filterknappen (och antal-aktiva-filter-indikatorn) inte ska visas i en inbäddad karta. Påverkar inte funktionaliteten om den inbäddade kartan använder en mapState som innehåller filter. Default är falsk. **Valfri**
-- excludedAttributes: Egenskaper/attribut som inte ska listas i gränssnittet. **Valfri**.
-- excludedLayers: Lager som inte ska listas i gränssnittet. Baseras på lagrets namn. **Valfri**.
-- optionBackgroundColor: Bakgrundsfärg på filterade lager i lagerlistan. **Valfri**.
-- filterPrefix: Prefix på filtrerade lager i lagerlistan. **Valfri**.
-- indicatorBackgroundColor: Bakgrundsfärg för indikatorn på antal aktiva filter. **Valfri**.
-- indicatorTextColor: Färg på texten för indikatorn på antal aktiva filter. **Valfri**.
-- actLikeRadioButton: Om knappen i verktygslistan ska agera som radio-knapp eller inte. **Valfri**.
-- tooltipText: Text som ska visas på verktygets tooltip. **Valfri**.
-- warningTooltipText: Text som ska visas på attribut-varningens tooltip. **Valfri**.
-- warningBackgroundColor: Bakgrundsfärg för attribut-varningen. **Valfri**.
-- warningTextColor: Färg på texten för attribut-varningen. **Valfri**.
-- warningText: Text som ska visas i attribut-varningen. **Valfri**.
-- geoserverUrl: URL till Geoservers . Ex. https://localhost/geoserver. Denna måste vara angiven för att kunna hämta och mappa FTL till attribut. Både /geoserver/rest/layers och /geoserver/rest/workspaces måste vara tillgängligt för GET-anrop. **Valfri**.
-- wfsSharedFilterDelay: Tid i millisekunder pluginen väntar med att applicera ett WFS-filter vid öppnande av delad karta (för att inte krocka med Origos laddning av samma lager) (i brist på passande event). Default är 5. **Valfri**
+- `hideButtonWhenEmbedded`: Huruvida filterknappen (och antal-aktiva-filter-indikatorn) inte ska visas i en inbäddad karta. Påverkar inte funktionaliteten om den inbäddade kartan använder en mapState som innehåller filter. Default är falsk. **Valfri**
+- `excludedAttributes`: Egenskaper/attribut som inte ska listas i gränssnittet. **Valfri**.
+- `excludedLayers`: Lager som inte ska listas i gränssnittet. Baseras på lagrets namn. **Valfri**.
+- `optionBackgroundColor`: Bakgrundsfärg på filterade lager i lagerlistan. **Valfri**.
+- `filterPrefix`: Prefix på filtrerade lager i lagerlistan. **Valfri**.
+- `indicatorBackgroundColor`: Bakgrundsfärg för indikatorn på antal aktiva filter. **Valfri**.
+- `indicatorTextColor`: Färg på texten för indikatorn på antal aktiva filter. **Valfri**.
+- `actLikeRadioButton`: Om knappen i verktygslistan ska agera som radio-knapp eller inte. **Valfri**.
+- `tooltipText`: Text som ska visas på verktygets tooltip. **Valfri**.
+- `warningTooltipText`: Text som ska visas på attribut-varningens tooltip. **Valfri**.
+- `warningBackgroundColor`: Bakgrundsfärg för attribut-varningen. **Valfri**.
+- `warningTextColor`: Färg på texten för attribut-varningen. **Valfri**.
+- `warningText`: Text som ska visas i attribut-varningen. **Valfri**.
+- `geoserverUrl`: URL till Geoservers . Ex. https://localhost/geoserver. Denna måste vara angiven för att kunna hämta och mappa FTL till attribut. Både /geoserver/rest/layers och /geoserver/rest/workspaces måste vara tillgängligt för GET-anrop. **Valfri**.
+- `wfsSharedFilterDelay`: Tid i millisekunder pluginen väntar med att applicera ett WFS-filter vid öppnande av delad karta (för att inte krocka med Origos laddning av samma lager) (i brist på passande event). Default är 5. **Valfri**
 
 **Material icons som används:**
 - ic_delete_24px
