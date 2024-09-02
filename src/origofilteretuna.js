@@ -64,7 +64,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   let mode = 'simple';
   let ftlMapper;
   const name = 'origofilteretuna';
-  const dom = Origo.ui.dom;
+  const ui = Origo.ui;
   const layerTypes = ['WMS', 'WFS'];
   const operators = [' = ', ' <> ', ' < ', ' > ', ' <= ', ' >= ', ' like ', ' between '];
   // https://openlayers.org/en/latest/apidoc/module-ol_Image.html#~LoadFunction
@@ -93,7 +93,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   const warningTextColor = Object.prototype.hasOwnProperty.call(options, 'warningTextColor') ? options.warningTextColor : '#000000';
   const warningText = Object.prototype.hasOwnProperty.call(options, 'warningText') ? options.warningText : 'OBS!';
   const geoserverUrl = Object.prototype.hasOwnProperty.call(options, 'geoserverUrl') ? options.geoserverUrl : undefined;
-
+  const wfsSharedFilterDelay = Object.prototype.hasOwnProperty.call(options, 'wfsSharedFilterDelay') ? options.wfsSharedFilterDelay : 5;
   function handleOverlapping() {
     if (document.getElementsByClassName('o-search').length > 0) {
       const search = document.getElementsByClassName('o-search')[0];
@@ -195,19 +195,25 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       });
     }
     const sourceUrl = getSourceUrl(layer);
-    const body = new URLSearchParams();
-    body.set('service', 'WFS');
-    body.set('version', '1.1.1');
-    body.set('request', 'GetFeature');
-    body.set('outputFormat', 'application/json');
-    body.set('typeNames', layer.get('name').split('__')[0]);
+
+    const wfsBody = {
+      service: 'WFS',
+      version: '1.1.1',
+      request: 'GetFeature',
+      outputFormat: 'application/json',
+      typeNames: layer.get('name').split('__')[0]
+    };
+
     if (filter) {
-      body.set('CQL_FILTER', filterArr.join(' '));
+      wfsBody.FILTER = filterArr.join(' ');
     }
 
     const WFSOptions = {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
       method: 'POST',
-      body
+      body: new URLSearchParams(wfsBody).toString().replace(/\+/g, '%20')
     };
 
     const result = await fetch(`${sourceUrl}wfs?`, WFSOptions);
@@ -344,7 +350,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       const node = document.createElement('li');
       node.id = filter.layerName;
       node.classList = 'rounded border text-smaller padding-small margin-top-small relative o-tooltip';
-      node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p><p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.cqlFilter}</p>${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
+      node.innerHTML = `<p style="overflow-wrap: break-word; width: 18rem"><span class="text-weight-bold">Lager: </span>${filter.title}</p>
+<p style="overflow-wrap: break-word;"><span class="text-weight-bold">Filter: </span>${filter.cqlFilter}</p>
+${myFilterRemoveButton.render()}${myFilterEditButton.render()}${myFilterDisplayButton.render()}`;
 
       const layer = viewer.getLayer(filter.layerName);
       if (!layer || !layer.get('visible')) {
@@ -353,7 +361,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       } else {
         node.querySelector('.display-filter').classList.add('o-hidden');
       }
-      document.getElementById(myFilterList.getId()).appendChild(node);
+      document.getElementById(myFilterList.getId()).append(node);
     });
   }
 
@@ -384,9 +392,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     });
   }
 
-  async function setWfsFeaturesOnLayer(layer, filter) {
-    layer.set('cqlFilter', filter);
-    const features = await getWfsFeatures(layer, filter);
+  async function setWfsFeaturesOnLayer({ layer, cqlFilter, ogcFilter }) {
+    layer.set('cqlFilter', cqlFilter);
+    const features = await getWfsFeatures(layer, ogcFilter);
     const layerSource = layer.getSource();
 
     layerSource.clear(true);
@@ -487,13 +495,11 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         }
         currentlyFilteredLayers.push(layer);
       } else if (layer.get('type') === 'WFS') {
-        layer.getSource().once('change', () => {
-          if (layer.getSource().getState() === 'ready') {
-            setWfsFeaturesOnLayer(layer, filter.cqlFilter);
-            setIndicators(filter.layerName, viewer.getEmbedded());
-            currentlyFilteredLayers.push(layer);
-          }
-        });
+        setTimeout(() => { // Haven't found an event / a better way that works with and without a delay between Origo loading and the plugin loading
+          setWfsFeaturesOnLayer({ layer, cqlFilter: filter.cqlFilter, ogcFilter: filter.ogcFilter });
+          setIndicators(filter.layerName, viewer.getEmbedded());
+          currentlyFilteredLayers.push(layer);
+        }, wfsSharedFilterDelay);
       }
     });
   }
@@ -510,36 +516,90 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     }
   }
 
+  const cqlOgcTable = {
+    '=': 'PropertyIsEqualTo',
+    '<>': 'PropertyIsNotEqualTo',
+    '<': 'PropertyIsLessThan',
+    '<=': 'PropertyIsLessThanOrEqualTo',
+    '>': 'PropertyIsGreaterThan',
+    '>=': 'PropertyIsGreaterThanOrEqualTo',
+    like: 'PropertyIsLike',
+    between: 'PropertyIsBetween'
+  };
+  function createOgcFilterOpr(opr) {
+    return cqlOgcTable[opr.trim()];
+  }
+
   function createCqlFilter() {
-    let filterString = '';
-    if (mode === 'simple') {
-      const filters = [];
+    let cqlFilterString = '';
+    let ogcFilterString = '';
+
+    const getCqlFilterFromSimpleView = function getCqlFilterFromSimpleView() {
       const rows = Array.from(document.getElementsByClassName('attributeRow'));
       const logic = document.getElementById(logicSelect.getId()).value;
+      const filters = [];
 
       rows.forEach((row) => {
         const att = row.querySelector(`#${attributeSelect.getId()}`).value;
         const opr = row.querySelector(`#${operatorSelect.getId()}`).value;
         const val = row.querySelector('input').value;
+        if (val === '') return;
 
-        if (val !== '') {
-          filters.push(`${att}${opr}'${val}'`);
-        }
+        filters.push({
+          att,
+          opr,
+          val
+        });
       });
 
-      filterString = filters.join(` ${logic} `);
-      document.getElementById(cqlStringTextarea.getId()).value = filterString;
+      return {
+        filters,
+        logic
+      };
+    };
+
+    const getOgcFilterString = function getOgcFilterString({ filters, logic }) {
+      const ogcLogicOpr = logic.charAt(0) + logic.slice(1).toLowerCase();
+      const ogcFiltersString = filters.reduce((acc, obj) => {
+        let startString = `<${createOgcFilterOpr(obj.opr)}`;
+        if (obj.opr === ' like ') {
+          startString += ' wildCard="*" singleChar="." escape="!">';
+          const innerObj = obj;
+          innerObj.val = innerObj.val.replaceAll('%', '*');
+        } else startString += '>';
+        return `${acc}${startString}<PropertyName>${obj.att}</PropertyName><Literal>${obj.val}</Literal></${createOgcFilterOpr(obj.opr)}>`;
+      }, '');
+
+      ogcFilterString = `<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc"><ogc:${ogcLogicOpr}>${ogcFiltersString}</ogc:${ogcLogicOpr}></ogc:Filter>`;
+      return ogcFilterString;
+    };
+
+    if (mode === 'simple') {
+      const { filters, logic } = getCqlFilterFromSimpleView();
+
+      const cqlRowArray = filters.map((filter) => `${filter.att}${filter.opr}'${filter.val}'`);
+      cqlFilterString = cqlRowArray.join(` ${logic} `);
+
+      if (selectedLayer.get('type') === 'WFS') {
+        ogcFilterString = getOgcFilterString({ filters, logic });
+      }
+      document.getElementById(cqlStringTextarea.getId()).value = cqlFilterString;
     } else if (mode === 'advanced') {
-      filterString = document.getElementById(cqlStringTextarea.getId()).value;
+      cqlFilterString = document.getElementById(cqlStringTextarea.getId()).value;
+
+      if (selectedLayer.get('type') === 'WFS') {
+        setAttributeRowsToFilter(cqlFilterString);
+        ogcFilterString = getOgcFilterString(getCqlFilterFromSimpleView());
+      }
     }
 
     if (selectedLayer.get('type') === 'WMS') {
       const WMSSource = selectedLayer.getSource();
       WMSSource.setUrl(getAbsoluteSourceURL(WMSSource));
       setWMSLoadFunctionIfNeeded(WMSSource, selectedLayer);
-      WMSSource.updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: filterString });
+      WMSSource.updateParams({ layers: selectedLayer.get('id'), CQL_FILTER: cqlFilterString });
     } else if (selectedLayer.get('type') === 'WFS') {
-      setWfsFeaturesOnLayer(selectedLayer, filterString);
+      setWfsFeaturesOnLayer({ layer: selectedLayer, cqlFilter: cqlFilterString, ogcFilter: ogcFilterString });
     }
 
     if (getCqlFilterFromLayer(selectedLayer) !== '') {
@@ -550,9 +610,11 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       filterJson.filters.push({
         title: selectedLayer.get('title'),
         layerName: selectedLayer.get('name'),
-        cqlFilter: filterString
+        cqlFilter: cqlFilterString,
+        ogcFilter: ogcFilterString
       });
     }
+    //
   }
 
   function removeCqlFilter(layerName) {
@@ -568,7 +630,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         setWMSLoadFunction(WMSSource, true);
       }
     } else if (layer.get('type') === 'WFS') {
-      setWfsFeaturesOnLayer(layer);
+      setWfsFeaturesOnLayer({ layer });
     }
 
     const select = document.getElementById(layerSelect.getId());
@@ -594,7 +656,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
         }
         WMSSource.updateParams({ layers: layer.get('id'), CQL_FILTER: undefined });
       } else if (layer.get('type') === 'WFS') {
-        setWfsFeaturesOnLayer(layer);
+        setWfsFeaturesOnLayer({ layer });
       }
       currentlyFilteredLayers.splice(i, 1);
       i -= 1;
@@ -719,6 +781,9 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
   }
 
   function setMode(modeString) {
+    if ((mode === modeString) && (modeString !== 'myfilter')) {
+      return;
+    }
     mode = modeString;
 
     if (mode === 'simple') {
@@ -1191,7 +1256,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       advancedText = Origo.ui.Element({
         tagName: 'p',
         cls: 'text-smaller',
-        innerHTML: 'CQL-sträng:'
+        innerHTML: 'Filtersträng:'
       });
 
       cqlStringTextarea = Origo.ui.Textarea({
@@ -1320,10 +1385,10 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
       }
     },
     render() {
-      document.getElementById(target).appendChild(dom.html(filterDiv.render()));
-      document.getElementById(filterDiv.getId()).appendChild(dom.html(filterButton.render()));
-      document.getElementById(viewer.getMain().getId()).appendChild(dom.html(filterBox.render()));
-      document.getElementById(filterBox.getId()).appendChild(dom.html(filterBoxContent.render()));
+      document.getElementById(target).appendChild(ui.dom.html(filterDiv.render()));
+      document.getElementById(filterDiv.getId()).appendChild(ui.dom.html(filterButton.render()));
+      document.getElementById(viewer.getMain().getId()).appendChild(ui.dom.html(filterBox.render()));
+      document.getElementById(filterBox.getId()).appendChild(ui.dom.html(filterBoxContent.render()));
 
       document.getElementById(createFilterButton.getId()).addEventListener('click', () => createCqlFilter());
       document.getElementById(removeFilterButton.getId()).addEventListener('click', () => removeCqlFilter());
