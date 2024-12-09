@@ -78,6 +78,7 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
     WMSTile.getImage().src = src;
   });
   const currentlyFilteredLayers = [];
+  const flaskUrl = 'https://ikarta.eskilstuna.se/python_filter_test';
 
   const hideButtonWhenEmbedded = 'hideButtonWhenEmbedded' in options ? options.hideButtonWhenEmbedded : false;
   const excludedAttributes = Object.prototype.hasOwnProperty.call(options, 'excludedAttributes') ? options.excludedAttributes : [];
@@ -223,15 +224,26 @@ const Origofilteretuna = function Origofilteretuna(options = {}) {
 
   async function getFeatureProps(layer) {
     try {
-      const sourceUrl = getSourceUrl(layer);
-      const url = [
-        `${sourceUrl}`,
-        'wfs?version=1.3.0&request=describeFeatureType&outputFormat=application/json&service=WFS',
-        `&typeName=${layer.get('name').split('__')[0]}`
-      ].join('');
+      // Create request to Flask-endpoint, send layername as parameter
+      const params = new URLSearchParams({
+        layers: layer.get('name').split('__')[0]
+      });
 
-      const res = await fetch(url);
-      return await res.json();
+      // Make POST-request to Flaskapp
+      const res = await fetch(`${flaskUrl}?${params}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch feature properties: ${res.statusText}`);
+      }
+
+      // Interpret the JSON-answer  from Flask
+      const jsonResponse = await res.json();
+      return jsonResponse;
     } catch (e) {
       return null;
     }
