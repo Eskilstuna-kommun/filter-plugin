@@ -61,7 +61,8 @@ SVG för ic_filter_24px
         warningBackgroundColor: '#fff700',
         warningTextColor: '#000000',
         warningText: 'OBS!',
-        geoserverUrl: 'https://karta.eskilstuna.se/geoserver'
+        geoserverUrl: 'https://karta.eskilstuna.se/geoserver',
+        schemaurl: 'https://ikarta.eskilstuna.se/ek_sok'
       });
       viewer.addComponent(origofilteretuna);
     });
